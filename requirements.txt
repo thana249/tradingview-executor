@@ -1,0 +1,8 @@
+requests
+fastapi
+uvicorn
+python-dotenv
+waitress
+ccxt
+urllib3==1.26.15
+pytest

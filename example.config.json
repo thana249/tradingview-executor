@@ -1,0 +1,24 @@
+{
+  "orderbook_weights": [4, 2, 1, 1, 0, 0],
+  "BINANCE": {
+    "fee": 0.0011,
+    "base_asset": "USDT",
+    "universe": [
+      "BTC"
+    ]
+  },
+  "FTX": {
+    "fee": 0.00071,
+    "base_asset": "USD",
+    "universe": [
+      "BTC"
+    ]
+  },
+  "KUCOIN": {
+    "fee": 0.0024,
+    "base_asset": "USDT",
+    "universe": [
+      "BTC","ETH"
+    ]
+  }
+}

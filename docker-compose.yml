@@ -1,0 +1,13 @@
+version: '3.7'
+services:
+  api:
+    container_name: tradingview_executor
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: always  # Ensures the container always restarts
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"  # Max size of log before rotation
+        max-file: "3"    # Max number of log files to keep
