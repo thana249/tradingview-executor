@@ -7,7 +7,8 @@ TradingView Executor is a robust and efficient application designed to automate 
 ### Key Features
 
 - **Webhook Reception**: Receives and processes webhooks from TradingView.
-- **Order Execution**: Executes orders on Binance, FTX, or Kucoin based on the received webhook data.
+- **Order Execution**: Places orders on supported CEX platforms based on the webhook data.
+- **Multi-Exchange Support**: Compatible with Binance, FTX, and Kucoin.
 - **Line Notifications**: Sends notifications through LINE for updates and alerts.
 - **Dynamic Configuration**: Utilizes `.env` for sensitive credentials and `config.json` for user-defined trading configurations.
 
@@ -39,6 +40,23 @@ Trading configurations like exchange-specific settings, base assets, and the uni
 ### Order Execution Strategy
 The application uses the orderbook_weights from config.json to calculate the limit order price based on the WEIGHTED_AVERAGE strategy.
 
+### Webhook Format
+
+The application expects webhooks in the following format:
+
+```json
+{
+  "exchange": "{{exchange}}",
+  "symbol": "{{ticker}}",
+  "side": "{{strategy.order.action}}",
+  "send_order": 1
+}
+```
+- `side`: Can be either buy or sell.
+- `send_order`: When set to 1, the program will execute the order.
+
+Additional fields can be added for enhanced LINE notifications (e.g., strategy name, current price).
+
 ## Running the Application
 
 TradingView Executor is containerized, making it easy to run using Docker. Ensure you have Docker and Docker Compose installed on your system.
@@ -54,6 +72,10 @@ This command builds the Docker image and starts the container. The application w
 ## Contributing
 
 Contributions to the TradingView Executor project are welcome. If you have suggestions for improvements or encounter any issues, please feel free to open an issue or submit a pull request.
+
+## License
+
+Distributed under the MIT License. See `LICENSE` for more information.
 
 ---
 
