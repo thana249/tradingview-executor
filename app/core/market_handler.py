@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class MarketHandler(metaclass=Singleton):
     config = {}
 
-    exchange_list = ['BINANCE', 'FTX', 'KUCOIN']
+    exchange_list = ['BINANCE', 'KUCOIN']
     exchange = {}
     portfolio = {}
 
@@ -54,12 +54,6 @@ class MarketHandler(metaclass=Singleton):
                 if api_key != "" and api_secret != "":
                     if name == 'BINANCE':
                         self.exchange[name] = ccxt.binance({
-                            'apiKey': api_key,
-                            'secret': api_secret,
-                            'enableRateLimit': True,
-                        })
-                    elif name == 'FTX':
-                        self.exchange[name] = ccxt.ftx({
                             'apiKey': api_key,
                             'secret': api_secret,
                             'enableRateLimit': True,
