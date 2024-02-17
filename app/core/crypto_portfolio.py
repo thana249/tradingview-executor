@@ -157,8 +157,8 @@ class CryptoPortfolio(Portfolio):
             self.compute_holding_weight()
         # asset_list = self.universe.copy()
         # asset_list.append(self.base_asset)
-        balance = self.get_n_balance()
-        asset_list = list(balance.keys())
+        balances = self.get_n_balance()
+        asset_list = list(balances.keys())
         if 'USDT' in asset_list:
             asset_list.remove('USDT')
         if 'BUSD' in asset_list:
@@ -167,14 +167,14 @@ class CryptoPortfolio(Portfolio):
             asset_list.remove('USD')
         if 'THB' in asset_list:
             asset_list.remove('THB')
-        result = {self.base_asset: round(balance[self.base_asset] if self.base_asset in balance else 0, 2)}
+        result = {self.base_asset: round(balances[self.base_asset] if self.base_asset in balances else 0, 2)}
         total = result[self.base_asset]
-        asset_price = self.get_n_price(asset_list)
+        asset_prices = self.get_n_price(asset_list)
         for asset in asset_list:
-            if asset not in asset_price:
+            if asset not in asset_prices:
                 continue
-            b = balance[asset] if balance[asset] > 0.00005 else 0
-            price = asset_price[asset]
+            b = balances[asset] if balances[asset] > 0.00005 else 0
+            price = asset_prices[asset]
             value = round(b * price, 2)
             if value < 1:
                 continue
@@ -440,7 +440,7 @@ class CryptoPortfolio(Portfolio):
 
         sleep(0.75)  # Wait for order book to be updated
 
-        matched = False
+        fully_filled = False
         while not self.stop_worker[asset]:
             order_book = self.exchange.fetch_order_book(symbol)
             target_price = calculate_target_price(order_book, remaining, order,
@@ -458,26 +458,27 @@ class CryptoPortfolio(Portfolio):
                 order = self.__update_order(symbol, side, order, target_price, target_amount, order_side_params)
                 # If the order is not updated due to missing previous order, check balance and recalculate amount
                 if order is None:
-                    # Check balance whether the order is matched or not
-                    remaining = self.__get_remaining_amount(asset, target_price, side)
+                    order, remaining = self.__handle_order_completion(asset, side, target_price)
                     if remaining == 0:
-                        matched = True
+                        fully_filled = True
                         break
-                    else:  # Create new order
-                        order = self.__create_limit_order(symbol, side, remaining, target_price)
                 sleep(0.75)  # Wait for order book to be updated
             else:
                 order = self.__refresh_order_status(order, symbol, side, order_side_params)
-                remaining = order['remaining'] if order else 0
-                if remaining == 0:
-                    matched = True
-                    break
-                sleep(1/50)
+                if order is None:
+                    order, remaining = self.__handle_order_completion(asset, side, target_price)
+                    if remaining == 0:
+                        fully_filled = True
+                        break
+                    else:
+                        sleep(0.75)  # Wait for order book to be updated
+                else:
+                    sleep(1/50)
 
-        if matched:
+        if fully_filled:
             unit = self.base_asset if side == 'buy' else asset
-            logger.info(f'Order is matched, {side} {symbol} => {amount} {unit}')
-            send_line_notify(f'Order is matched, {side} {symbol} => {amount} {unit}')
+            logger.info(f'Order is fully matched, {side} {symbol} => {amount} {unit}')
+            send_line_notify(f'Order is fully matched, {side} {symbol} => {amount} {unit}')
 
         self.threads[asset] = None
 
@@ -511,7 +512,7 @@ class CryptoPortfolio(Portfolio):
         try:
             order = self.exchange.fetch_order(order['id'], symbol, order_side_params)
             if order['status'] == 'closed':
-                logger.info(f'Order is matched, id={order["id"]}')
+                logger.info(f'Order is closed, id={order["id"]}')
                 return None
             return order
         except OrderNotFound:
@@ -561,6 +562,25 @@ class CryptoPortfolio(Portfolio):
             send_line_notify(f'Failed to update order: {e}, {symbol}, {side}, {target_amount}, {target_price}')
             return None  # Return None to check remaining balance and create a new order
 
+    def __handle_order_completion(self, asset, side, target_price):
+        """
+        Checks the remaining balance for an asset and decides whether to mark an order as matched
+        or create a new one.
+        :param asset: The asset for which the order is being placed.
+        :param side: The side of the order ('buy' or 'sell').
+        :param target_price: The target price at which a new order should be placed if necessary.
+        :return: A tuple containing the updated order and a flag indicating whether the order was matched.
+        """
+        remaining = self.__get_remaining_amount(asset, target_price, side)
+        if remaining == 0:
+            # Order is fully matched
+            return None, 0
+        else:
+            # Create a new order with the remaining balance
+            symbol = f'{asset}/{self.base_asset}'
+            order = self.__create_limit_order(symbol, side, remaining, target_price)
+            return order, remaining
+
     def __get_remaining_amount(self, asset, target_price, side):
         """
         Returns the remaining amount of the specified asset.
@@ -574,6 +594,9 @@ class CryptoPortfolio(Portfolio):
         else:
             quote_balance = self.get_balance(asset)
             remaining = quote_balance
+            min_amount, min_cost = self.get_min_trade_amount(asset, self.base_asset)
+            if (min_amount and remaining < min_amount) or (min_cost and quote_balance * float(target_price) < min_cost):
+                return 0
         return remaining
 
     def is_thread_running(self) -> bool:
