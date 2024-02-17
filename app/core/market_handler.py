@@ -11,6 +11,7 @@ from app.core.config import Config
 from app.core.singleton import Singleton
 from app.core.portfolio import Portfolio
 from app.core.crypto_portfolio import CryptoPortfolio
+from app.core.ccxt_ext.bitkub import bitkub
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 class MarketHandler(metaclass=Singleton):
     config = {}
 
-    exchange_list = ['BINANCE', 'KUCOIN']
+    exchange_list = ['BINANCE', 'KUCOIN', 'BITKUB']
     exchange = {}
     portfolio = {}
 
@@ -37,6 +38,36 @@ class MarketHandler(metaclass=Singleton):
             self.portfolio[e] = None
         logger.debug(self.exchange_list)
 
+        # Init connection to exchanges
+        for mkt in self.exchange_list:
+            api_key = os.getenv(mkt + '_API_KEY')
+            api_secret = os.getenv(mkt + '_API_SECRET')
+            if api_key != "" and api_secret != "":
+                if mkt == 'BINANCE':
+                    self.exchange[mkt] = ccxt.binance({
+                        'apiKey': api_key,
+                        'secret': api_secret,
+                        'enableRateLimit': True,
+                    })
+                elif mkt == 'KUCOIN':
+                    self.exchange[mkt] = ccxt.kucoin({
+                        'apiKey': api_key,
+                        'secret': api_secret,
+                        'password': os.getenv(mkt + '_PASSPHRASE'),
+                        'enableRateLimit': True,
+                    })
+                elif mkt == 'BITKUB':
+                    self.exchange[mkt] = bitkub({
+                        'apiKey': api_key,
+                        'secret': api_secret,
+                        'enableRateLimit': True,
+                    })
+                else:
+                    logger.error('Unknown CEX')
+                # Init portfolio if not error
+                if mkt in self.exchange:
+                    self.portfolio[mkt] = CryptoPortfolio(self.config[mkt], self.exchange[mkt], mkt)
+
     def get_portfolio(self, name) -> Portfolio:
         """
         Get the portfolio for a specific exchange.
@@ -47,28 +78,7 @@ class MarketHandler(metaclass=Singleton):
         Returns:
             Portfolio: The portfolio object for the specified exchange.
         """
-        if name in self.exchange_list:
-            if self.exchange[name] is None:
-                api_key = os.getenv(name + '_API_KEY')
-                api_secret = os.getenv(name + '_API_SECRET')
-                if api_key != "" and api_secret != "":
-                    if name == 'BINANCE':
-                        self.exchange[name] = ccxt.binance({
-                            'apiKey': api_key,
-                            'secret': api_secret,
-                            'enableRateLimit': True,
-                        })
-                    elif name == 'KUCOIN':
-                        self.exchange[name] = ccxt.kucoin({
-                            'apiKey': api_key,
-                            'secret': api_secret,
-                            'password': os.getenv(name + '_PASSPHRASE'),
-                            'enableRateLimit': True,
-                        })
-                else:
-                    logger.error('API key or secret not found')
-            if self.portfolio[name] is None:
-                self.portfolio[name] = CryptoPortfolio(self.config[name], self.exchange[name], name)
+        if name in self.portfolio:
             return self.portfolio[name]
         else:
             return None
@@ -96,19 +106,23 @@ class MarketHandler(metaclass=Singleton):
             dict: A dictionary containing the total balance and balances for each exchange.
         """
         exchange = {}
-        total = 0
+        total = {}
         for mkt in self.exchange_list:
             try:
                 portfolio = self.get_portfolio(mkt)
                 if portfolio:
                     exchange[mkt] = portfolio.get_portfolio_balance()
-                    total += exchange[mkt]['total']
+                    base_asset = portfolio.get_base_asset()
+                    if base_asset not in total:
+                        total[base_asset] = 0
+                    total[base_asset] += exchange[mkt]['total'][base_asset]
                 else:
                     exchange[mkt] = 'Cannot connect'
             except:
                 logging.error(traceback.format_exc())
-                exchange[mkt] = 'Cannot connect'
-        result = {'total': round(total, 2), 'exchanges': exchange}
+                exchange[mkt] = 'Error'
+        total = {k: round(v, 2) for k, v in total.items()}
+        result = {'total': total, 'exchanges': exchange}
         return result
 
     def is_thread_running(self) -> bool:

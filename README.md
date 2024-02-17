@@ -49,11 +49,13 @@ The application expects webhooks in the following format:
   "exchange": "{{exchange}}",
   "symbol": "{{ticker}}",
   "side": "{{strategy.order.action}}",
-  "send_order": 1
+  "send_order": 1,
+  "secret": "secret"
 }
 ```
 - `side`: Can be either buy or sell.
 - `send_order`: When set to 1, the program will execute the order.
+- `secret`: A secret key to authenticate the webhook. Only for orders that need to be executed.
 
 Additional fields can be added for enhanced LINE notifications (e.g., strategy name, current price).
 
