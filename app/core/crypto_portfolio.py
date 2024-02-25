@@ -446,7 +446,8 @@ class CryptoPortfolio(Portfolio):
             target_price = calculate_target_price(order_book, remaining, order,
                                                   tick_size, limit_order_strategy)
             target_price = self.exchange.price_to_precision(symbol, target_price)
-            if should_update_order(order, target_price):
+            should_update = should_update_order(order, target_price)
+            if should_update:
                 # Print the order book levels for debugging
                 # self.__print_order_book_levels(order_book, side == 'buy', target_price, order)
 
@@ -456,24 +457,22 @@ class CryptoPortfolio(Portfolio):
                 if side == 'buy':
                     logger.info(f'Amount {remaining} => {target_amount} {asset}')
                 order = self.__update_order(symbol, side, order, target_price, target_amount, order_side_params)
-                # If the order is not updated due to missing previous order, check balance and recalculate amount
-                if order is None:
-                    order, remaining = self.__handle_order_completion(asset, side, target_price)
-                    if remaining == 0:
-                        fully_filled = True
-                        break
-                sleep(0.75)  # Wait for order book to be updated
-            else:
+                # Order will be None if it's fully matched or failed to update
+                if order is not None:  # New order is created
+                    sleep(0.75)  # Wait for order book to be updated
+
+            # Refresh the status of the order
+            # If order is not updated, we need to check if it's fully matched
+            if not should_update or order is None:
                 order = self.__refresh_order_status(order, symbol, side, order_side_params)
+                sleep(0.02)
                 if order is None:
                     order, remaining = self.__handle_order_completion(asset, side, target_price)
                     if remaining == 0:
                         fully_filled = True
                         break
-                    else:
+                    if order is not None:  # New order is created
                         sleep(0.75)  # Wait for order book to be updated
-                else:
-                    sleep(1/50)
 
         if fully_filled:
             unit = self.base_asset if side == 'buy' else asset
