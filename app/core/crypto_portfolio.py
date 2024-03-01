@@ -585,6 +585,7 @@ class CryptoPortfolio(Portfolio):
         Returns the remaining amount of the specified asset.
         """
         if side == 'buy':
+            self.compute_holding_weight()
             base_balance = self.get_available_base_balance_for_asset(asset) * (1 - self.fee)
             remaining = base_balance / float(target_price)
             min_amount, min_cost = self.get_min_trade_amount(asset, self.base_asset)
